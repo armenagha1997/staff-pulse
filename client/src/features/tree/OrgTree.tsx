@@ -1,7 +1,5 @@
-import { useMemo, useState } from "react";
 import styled from "styled-components";
-import type { OrgNode } from "@/api/schema";
-import { buildTree, rootIds, type TreeNode } from "@/lib/tree";
+import type { TreeNode } from "@/lib/tree";
 import { TreeRow } from "@/features/tree/TreeRow";
 
 const List = styled.div`
@@ -13,23 +11,37 @@ const Branch = styled.div`
   overflow: hidden;
 `;
 
-interface TreeBranchProps {
-  nodes: TreeNode[];
+interface OrgTreeProps {
+  tree: TreeNode[];
   expandedIds: Set<string>;
+  selectedId: string | null;
   onToggle: (id: string) => void;
+  onSelect: (id: string) => void;
 }
 
-function TreeBranch({ nodes, expandedIds, onToggle }: TreeBranchProps) {
+function TreeBranch({ tree, expandedIds, selectedId, onToggle, onSelect }: OrgTreeProps) {
   return (
     <>
-      {nodes.map((node) => {
+      {tree.map((node) => {
         const expanded = expandedIds.has(node.id);
         return (
           <div key={node.id}>
-            <TreeRow node={node} expanded={expanded} onToggle={onToggle} />
+            <TreeRow
+              node={node}
+              expanded={expanded}
+              selected={node.id === selectedId}
+              onToggle={onToggle}
+              onSelect={onSelect}
+            />
             {node.children.length > 0 && expanded && (
               <Branch>
-                <TreeBranch nodes={node.children} expandedIds={expandedIds} onToggle={onToggle} />
+                <TreeBranch
+                  tree={node.children}
+                  expandedIds={expandedIds}
+                  selectedId={selectedId}
+                  onToggle={onToggle}
+                  onSelect={onSelect}
+                />
               </Branch>
             )}
           </div>
@@ -39,29 +51,10 @@ function TreeBranch({ nodes, expandedIds, onToggle }: TreeBranchProps) {
   );
 }
 
-export function OrgTree({ nodes }: { nodes: OrgNode[] }) {
-  const tree = useMemo(() => buildTree(nodes), [nodes]);
-
-  // "Второй уровень открыт по умолчанию": root divisions start expanded so
-  // departments (level 2) are visible without any interaction; deeper levels
-  // stay collapsed until the user opens them.
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(rootIds(nodes)));
-
-  const toggle = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
+export function OrgTree(props: OrgTreeProps) {
   return (
     <List role="tree">
-      <TreeBranch nodes={tree} expandedIds={expandedIds} onToggle={toggle} />
+      <TreeBranch {...props} />
     </List>
   );
 }

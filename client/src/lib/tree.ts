@@ -33,3 +33,16 @@ export function buildTree(nodes: OrgNode[]): TreeNode[] {
 export function rootIds(nodes: OrgNode[]): string[] {
   return nodes.filter((node) => node.parentId === null).map((node) => node.id);
 }
+
+// Chain of parent ids from `id` up to (excluding) the root's non-existent parent.
+// Used to expand a node's branch when it's selected from outside the tree (e.g. the table).
+export function ancestorIds(nodes: OrgNode[], id: string): string[] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const result: string[] = [];
+  let current = byId.get(id);
+  while (current?.parentId) {
+    result.push(current.parentId);
+    current = byId.get(current.parentId);
+  }
+  return result;
+}

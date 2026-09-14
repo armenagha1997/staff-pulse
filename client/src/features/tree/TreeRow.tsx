@@ -3,13 +3,16 @@ import { PerformanceIndicator } from "@/components/PerformanceIndicator";
 import { colors } from "@/styles/colors";
 import type { TreeNode } from "@/lib/tree";
 
-const Row = styled.div<{ $level: number }>`
+const Row = styled.div<{ $level: number; $selected: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
   padding-left: ${(props) => 12 + (props.$level - 1) * 20}px;
   border-radius: 6px;
+  cursor: pointer;
+  background: ${(props) => (props.$selected ? colors.surfaceRaised : "transparent")};
+  outline: ${(props) => (props.$selected ? `1px solid ${colors.accent}` : "none")};
 
   &:hover {
     background: ${colors.surfaceRaised};
@@ -58,21 +61,32 @@ const Headcount = styled.span`
 interface TreeRowProps {
   node: TreeNode;
   expanded: boolean;
+  selected: boolean;
   onToggle: (id: string) => void;
+  onSelect: (id: string) => void;
 }
 
-export function TreeRow({ node, expanded, onToggle }: TreeRowProps) {
+export function TreeRow({ node, expanded, selected, onToggle, onSelect }: TreeRowProps) {
   const hasChildren = node.children.length > 0;
 
   return (
-    <Row $level={node.level}>
+    <Row
+      $level={node.level}
+      $selected={selected}
+      role="treeitem"
+      aria-selected={selected}
+      onClick={() => onSelect(node.id)}
+    >
       {hasChildren ? (
         <ToggleButton
           type="button"
           $expanded={expanded}
           aria-expanded={expanded}
           aria-label={expanded ? "Свернуть" : "Развернуть"}
-          onClick={() => onToggle(node.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(node.id);
+          }}
         >
           ▸
         </ToggleButton>

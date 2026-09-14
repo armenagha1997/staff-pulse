@@ -16,18 +16,24 @@
 │  queryClient.ts— конфигурация react-query (staleTime=5s) │
 │  useOrgTree.ts — хук данных (кэш, retry, отмена запроса) │
 ├─────────────────────────────────────────────────────────┤
-│ client/src/lib/        — чистые вычисления               │
-│  tree.ts       — buildTree: плоский массив → дерево+уровни │
+│ client/src/lib/        — чистые вычисления (без React)    │
+│  tree.ts       — buildTree, ancestorIds, rootIds           │
+│  aggregate.ts  — aggregateTree (headcount/budget/performance) │
+│  format.ts     — formatBudget ("12 345 678 руб.")          │
+│  useDebouncedValue.ts — дебаунс значения (фильтр, 250мс)    │
 ├─────────────────────────────────────────────────────────┤
 │ client/src/features/   — UI-фичи                          │
-│  tree/OrgTree.tsx  — состояние раскрытия узлов             │
-│  tree/TreeRow.tsx  — строка узла (имя, headcount, performance) │
+│  tree/OrgTree.tsx, TreeRow.tsx     — дерево (controlled)   │
+│  table/OrgTable.tsx, columns.ts    — аналитическая таблица │
 ├─────────────────────────────────────────────────────────┤
 │ client/src/components/ — переиспользуемые UI-примитивы    │
 │  StatusPanels.tsx        — Loading/Error/Empty            │
 │  PerformanceIndicator.tsx— цветовой индикатор performance  │
+│  ViewToggle.tsx          — переключатель Дерево/Таблица   │
 ├─────────────────────────────────────────────────────────┤
-│ client/src/App.tsx      — композиция: данные → состояние → UI │
+│ client/src/App.tsx — владеет общим состоянием (tree,      │
+│  aggregatedRows, selectedId, expandedIds) и передаёт его  │
+│  вниз в OrgTree/OrgTable как controlled-компоненты         │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -54,7 +60,24 @@ react-query передаёt в `queryFn` `AbortSignal`, связанный с ж
 запроса: при размонтировании последнего наблюдателя запроса активный `fetch`
 отменяется автоматически — отдельного `useEffect`-cleanup не требуется.
 
+## Дерево и таблица — общее состояние
+
+`App.tsx` — единственный владелец состояния, которое должно быть согласовано
+между деревом и таблицей:
+- `tree` / `aggregatedRows` — вычисляются один раз на новые данные (см.
+  [data-model.md](data-model.md#агрегация)).
+- `selectedId` — узел, выбранный кликом по строке дерева ИЛИ таблицы;
+  `OrgTree`/`OrgTable` — controlled-компоненты, сами не хранят выбор.
+- `expandedIds` — раскрытые узлы дерева; выбор узла из таблицы дополняет этот
+  набор цепочкой предков (`ancestorIds`), чтобы выделенный узел не остался
+  скрытым в свёрнутой ветке.
+
+Таблица и фильтр/сортировка внутри неё — локальное состояние `OrgTable`
+(`filter`, `sort`), не поднятое в `App`: оно не влияет ни на дерево, ни на
+агрегацию, поэтому не должно быть в общем состоянии.
+
 ## Почему так (детали решений)
 
 Нетривиальные решения (react-query vs самописный кэш, styled-components vs
-CSS-модули, структура монорепозитория) зафиксированы в [docs/adr](adr/).
+CSS-модули, структура монорепозитория, режим просмотра и модель сортировки)
+зафиксированы в [docs/adr](adr/).
