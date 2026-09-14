@@ -1,0 +1,87 @@
+# Staff Pulse
+
+Дашборд для мониторинга орг-структуры компании: дивизионы → отделы → команды,
+с интерактивным деревом и аналитической таблицей.
+
+## Стек
+
+- **Клиент**: React 19 + TypeScript + Vite, `@tanstack/react-query` (кэш/SWR),
+  `zod` (валидация ответа API), `styled-components` (стилизация).
+- **Сервер**: Node.js + Express (mock API), TypeScript, `ws` (для live-обновлений, этап 03).
+- Монорепозиторий на npm workspaces (`client/`, `server/`).
+
+## Запуск (одна команда)
+
+Требуется Node.js 20+.
+
+```bash
+npm install
+npm run dev
+```
+
+Поднимет одновременно:
+- сервер на `http://localhost:4000` (`GET /api/org-tree`)
+- клиент на `http://localhost:5173` (проксирует `/api` на сервер)
+
+### Полезные dev-параметры мок-сервера
+
+Для ручной проверки состояний загрузки/ошибки/пустого ответа:
+
+```
+GET /api/org-tree?scenario=empty   # пустой массив
+GET /api/org-tree?scenario=error   # 500
+GET /api/org-tree?delay=2000       # искусственная задержка, мс
+```
+
+## Структура репозитория
+
+```
+client/   — React SPA
+server/   — mock API сервер
+docs/     — architecture.md, data-model.md, adr/
+```
+
+## Этапы (коммиты)
+
+Каждый этап — отдельный коммит, помеченный тегом `step/N`.
+
+- [x] `step/1` — FOUNDATION: скаффолд, mock API, дерево
+- [ ] `step/2` — CORE: аналитическая таблица
+- [ ] `step/3` — POLISH: live-обновления, UX
+- [ ] `step/4` — BONUS: Docker, Nginx, AI-поиск
+
+## Документация
+
+- [docs/architecture.md](docs/architecture.md) — слои приложения, поток данных
+- [docs/data-model.md](docs/data-model.md) — дерево, агрегация, контракт live-патчей
+- [docs/adr/](docs/adr/) — architecture decision records
+
+## AI в разработке
+
+Проект разрабатывался с использованием **Claude Code** (Anthropic, модель Claude Sonnet 5)
+как основного AI-инструмента на протяжении всей работы — от скаффолда до документации.
+
+**Что генерировалось AI:**
+- Полный скаффолд проекта (Vite/React/TS клиент, Express-сервер, npm workspaces).
+- Генератор мок-данных орг-дерева (`server/src/data.ts`) — детерминированный PRNG,
+  ≥40 узлов, 3 уровня вложенности.
+- Слой валидации API (`zod`-схемы) и слой кэширования (`@tanstack/react-query`,
+  `staleTime: 5000`).
+- Компоненты дерева (`OrgTree`, `TreeRow`), состояния загрузки/ошибки/пустого ответа,
+  индикатор эффективности.
+- Вся документация (`README.md`, `docs/architecture.md`, `docs/data-model.md`, ADR).
+
+**Что проверялось/корректировалось человеком:**
+- Выбор конкретных версий зависимостей и устранение уязвимостей
+  (`npm audit`: заменён `vitest@2` → `vitest@5` из-за уязвимости в `@vitest/mocker`/`esbuild`).
+- Исправление предупреждения Vite о `__dirname` в ESM-конфиге (`import.meta.dirname`).
+- Исправление устаревшей опции `baseUrl` в `tsconfig` (TS 6: `paths` без `baseUrl` требует
+  относительных путей `./src/*`).
+- Ручная проверка: `tsc -b` (типы), `oxlint` (линт), `vite build` (продакшн-сборка),
+  прямые curl-запросы к `/api/org-tree` (в т.ч. `scenario=empty`/`scenario=error`) —
+  для подтверждения, что сгенерированный код реально работает, а не просто «выглядит правильно».
+- Архитектурные решения (react-query вместо самописного кэша, styled-components вместо
+  CSS-модулей, структура монорепозитория) зафиксированы и обоснованы в ADR — они принимались
+  осознанно, а не слепым принятием первого предложенного AI варианта.
+
+Раздел будет дополняться по мере выполнения этапов 02–04.
