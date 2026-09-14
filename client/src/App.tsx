@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
+import type { AiSearchResult } from "@/api/aiSearch";
 import type { OrgNode } from "@/api/schema";
 import { useOrgTree } from "@/api/useOrgTree";
+import { AiSearchBar } from "@/components/AiSearchBar";
 import { ConnectionIndicator } from "@/components/ConnectionIndicator";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StatusPanels";
 import { ViewToggle, type ViewMode } from "@/components/ViewToggle";
 import { useLiveOrgData } from "@/features/live/useLiveOrgData";
 import { OrgTree } from "@/features/tree/OrgTree";
 import { OrgTable } from "@/features/table/OrgTable";
+import { matchesFilter } from "@/lib/aiFilter";
 import { ancestorIds, rootIds } from "@/lib/tree";
 import { colors } from "@/styles/colors";
 
@@ -80,6 +83,12 @@ function App() {
 
   const nodes = data ?? EMPTY_NODES;
   const { tree, aggregatedRows, updatedIds, connectionStatus } = useLiveOrgData(nodes);
+  const [aiResult, setAiResult] = useState<AiSearchResult | null>(null);
+
+  const matchIds = useMemo(() => {
+    if (!aiResult) return null;
+    return new Set(aggregatedRows.filter((row) => matchesFilter(row, aiResult.filter)).map((row) => row.id));
+  }, [aiResult, aggregatedRows]);
 
   // "Второй уровень открыт по умолчанию": seed expansion with root ids once,
   // the first time data arrives — later refetches must not reset the user's
@@ -116,6 +125,25 @@ function App() {
     });
   };
 
+  const handleAiResult = (result: AiSearchResult | null) => {
+    setAiResult(result);
+    if (!result) return;
+
+    // AI matches should be visible without manual clicking: expand every
+    // matched node's ancestor chain (the tree dims non-matches rather than
+    // hiding them, since hiding would also have to hide ancestors that
+    // aren't themselves matches). Done here, in the event handler that
+    // already knows the new filter, rather than a useEffect on matchIds.
+    const matched = aggregatedRows.filter((row) => matchesFilter(row, result.filter));
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      for (const row of matched) {
+        for (const ancestorId of ancestorIds(nodes, row.id)) next.add(ancestorId);
+      }
+      return next;
+    });
+  };
+
   return (
     <Page>
       <Header>
@@ -134,6 +162,7 @@ function App() {
 
       {!isLoading && !isError && nodes.length > 0 && (
         <>
+          <AiSearchBar onResult={handleAiResult} />
           <ViewToggle value={view} onChange={setView} />
           <Layout>
             <Panel $visible={view === "tree"}>
@@ -143,13 +172,20 @@ function App() {
                 expandedIds={expandedIds}
                 selectedId={selectedId}
                 updatedIds={updatedIds}
+                matchIds={matchIds}
                 onToggle={toggleExpanded}
                 onSelect={selectNode}
               />
             </Panel>
             <Panel $visible={view === "table"}>
               <PanelTitle>Аналитическая таблица</PanelTitle>
-              <OrgTable rows={aggregatedRows} selectedId={selectedId} updatedIds={updatedIds} onSelect={selectNode} />
+              <OrgTable
+                rows={aggregatedRows}
+                selectedId={selectedId}
+                updatedIds={updatedIds}
+                matchIds={matchIds}
+                onSelect={selectNode}
+              />
             </Panel>
           </Layout>
         </>

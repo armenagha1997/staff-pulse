@@ -98,3 +98,35 @@ interface OrgNodePatch {
 строки (дерево и таблица) переключаются на цвет подсветки БЕЗ анимации
 (0s), а как только метка снимается — обычный фон возвращается с переходом
 1.5с. Итог: мгновенная вспышка, затем плавное затухание ~1.5с (не наоборот).
+
+## AI-поиск: контракт StructuredFilter
+
+`POST /api/ai-search { query: string }` возвращает:
+
+```ts
+interface StructuredFilter {
+  nameContains?: string;
+  levels?: number[];           // 1=дивизион, 2=отдел, 3=команда
+  minHeadcount?: number;
+  maxHeadcount?: number;
+  minBudget?: number;
+  maxBudget?: number;
+  minPerformance?: number;
+  maxPerformance?: number;
+}
+
+interface AiSearchResponse {
+  filter: StructuredFilter;
+  source: "llm" | "heuristic";
+}
+```
+
+Сервер всегда отвечает 200 с каким-то `StructuredFilter` (LLM, если задан
+`ANTHROPIC_API_KEY`, иначе офлайн-эвристика — см.
+[ADR-008](adr/008-ai-search-design.md)). Если сам HTTP-запрос не удался,
+клиент (`client/src/api/aiSearch.ts`) формирует `{ filter: { nameContains: query }, source: "text-fallback" }`
+локально — третий, чисто клиентский уровень отказоустойчивости.
+
+Применяется чистой функцией `matchesFilter(row, filter)`
+(`client/src/lib/aiFilter.ts`, AND-семантика по всем заданным полям) к уже
+посчитанным `AggregatedRow[]` — не пересекается с логикой агрегации выше.

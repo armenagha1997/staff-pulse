@@ -28,3 +28,23 @@ export const OrgNodePatchSchema = z.object({
 });
 
 export type OrgNodePatch = z.infer<typeof OrgNodePatchSchema>;
+
+export const StructuredFilterSchema = z.object({
+  nameContains: z.string().optional(),
+  levels: z.array(z.number()).optional(),
+  minHeadcount: z.number().optional(),
+  maxHeadcount: z.number().optional(),
+  minBudget: z.number().optional(),
+  maxBudget: z.number().optional(),
+  minPerformance: z.number().optional(),
+  maxPerformance: z.number().optional(),
+});
+
+export type StructuredFilter = z.infer<typeof StructuredFilterSchema>;
+
+export const AiSearchResponseSchema = z.object({
+  filter: StructuredFilterSchema,
+  source: z.enum(["llm", "heuristic"]),
+});
+
+export type AiSearchResponse = z.infer<typeof AiSearchResponseSchema>;

@@ -3,7 +3,7 @@ import { PerformanceIndicator } from "@/components/PerformanceIndicator";
 import { colors } from "@/styles/colors";
 import type { TreeNode } from "@/lib/tree";
 
-const Row = styled.div<{ $level: number; $selected: boolean; $updated: boolean }>`
+const Row = styled.div<{ $level: number; $selected: boolean; $updated: boolean; $dimmed: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -11,12 +11,13 @@ const Row = styled.div<{ $level: number; $selected: boolean; $updated: boolean }
   padding-left: ${(props) => 12 + (props.$level - 1) * 20}px;
   border-radius: 6px;
   cursor: pointer;
+  opacity: ${(props) => (props.$dimmed ? 0.35 : 1)};
   background: ${(props) => (props.$updated ? colors.highlightFlash : props.$selected ? colors.surfaceRaised : "transparent")};
   outline: ${(props) => (props.$selected ? `1px solid ${colors.accent}` : "none")};
   /* Instant flash on ($updated true, 0s), slow fade back to normal (false, 1.5s) —
      a single symmetric transition would also ramp the flash-ON in over 1.5s and
      get cut off by the brief highlight window, producing a barely-visible bump. */
-  transition: background-color ${(props) => (props.$updated ? "0s" : "1.5s")} ease-out;
+  transition: background-color ${(props) => (props.$updated ? "0s" : "1.5s")} ease-out, opacity 0.15s ease;
 
   &:hover {
     background: ${colors.surfaceRaised};
@@ -71,11 +72,12 @@ interface TreeRowProps {
   expanded: boolean;
   selected: boolean;
   updated: boolean;
+  dimmed: boolean;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
 }
 
-export function TreeRow({ node, expanded, selected, updated, onToggle, onSelect }: TreeRowProps) {
+export function TreeRow({ node, expanded, selected, updated, dimmed, onToggle, onSelect }: TreeRowProps) {
   const hasChildren = node.children.length > 0;
 
   return (
@@ -83,6 +85,7 @@ export function TreeRow({ node, expanded, selected, updated, onToggle, onSelect 
       $level={node.level}
       $selected={selected}
       $updated={updated}
+      $dimmed={dimmed}
       role="treeitem"
       aria-selected={selected}
       onClick={() => onSelect(node.id)}

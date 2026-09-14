@@ -1,0 +1,17 @@
+services:
+  server:
+    build: ./server
+    environment:
+      PORT: 4000
+      CLIENT_ORIGIN: http://localhost:${CLIENT_PORT:-8080}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+    restart: unless-stopped
+
+  client:
+    build: ./client
+    ports:
+      - "${CLIENT_PORT:-8080}:80"
+    depends_on:
+      - server
+    restart: unless-stopped

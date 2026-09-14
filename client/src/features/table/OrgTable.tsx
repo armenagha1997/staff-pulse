@@ -107,10 +107,11 @@ interface OrgTableProps {
   rows: AggregatedRow[];
   selectedId: string | null;
   updatedIds: Set<string>;
+  matchIds: Set<string> | null;
   onSelect: (id: string) => void;
 }
 
-export function OrgTable({ rows, selectedId, updatedIds, onSelect }: OrgTableProps) {
+export function OrgTable({ rows, selectedId, updatedIds, matchIds, onSelect }: OrgTableProps) {
   const [filter, setFilter] = useState("");
   const debouncedFilter = useDebouncedValue(filter, 250);
   const [sort, setSort] = useState<SortState>({ column: "name", direction: "asc" });
@@ -119,7 +120,11 @@ export function OrgTable({ rows, selectedId, updatedIds, onSelect }: OrgTablePro
 
   const visibleRows = useMemo(() => {
     const query = debouncedFilter.trim().toLowerCase();
-    const filtered = query ? rows.filter((row) => row.name.toLowerCase().includes(query)) : rows;
+    const filtered = rows.filter((row) => {
+      if (query && !row.name.toLowerCase().includes(query)) return false;
+      if (matchIds && !matchIds.has(row.id)) return false;
+      return true;
+    });
 
     const sorted = [...filtered].sort((a, b) => {
       const cmp = compareRows(a, b, sort.column);
@@ -127,7 +132,7 @@ export function OrgTable({ rows, selectedId, updatedIds, onSelect }: OrgTablePro
     });
 
     return sorted;
-  }, [rows, debouncedFilter, sort]);
+  }, [rows, debouncedFilter, matchIds, sort]);
 
   // Clamp during render rather than via a setState-in-effect: if the
   // filtered/sorted row count shrinks, the previous index simply may not

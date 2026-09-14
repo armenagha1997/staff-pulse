@@ -9,6 +9,7 @@
   `zod` (валидация ответа API), `styled-components` (стилизация).
 - **Сервер**: Node.js + Express (mock API), TypeScript, `ws` (WebSocket-сервер для live-обновлений).
 - Монорепозиторий на npm workspaces (`client/`, `server/`).
+- **Production**: Docker Compose (Node-сервер + Nginx, отдающий gzip-статику и проксирующий API/WS).
 
 ## Запуск (одна команда)
 
@@ -28,6 +29,19 @@ npm run dev
 подождите несколько секунд, чтобы увидеть live-обновление (жёлтая вспышка на
 затронутом узле и его предках, индикатор «Live» в шапке).
 
+## Запуск через Docker (production-сборка)
+
+```bash
+cp .env.example .env   # опционально: указать CLIENT_PORT/ANTHROPIC_API_KEY
+docker compose up --build
+```
+
+Откроется на `http://localhost:8080` (или `${CLIENT_PORT}` из `.env`). Nginx
+отдаёт собранный клиент с gzip и проксирует `/api/*` и `/ws` на серверный
+контейнер (сам сервер не публикуется наружу). `ANTHROPIC_API_KEY` в `.env` —
+опционален: без него AI-поиск работает через встроенный офлайн-парсер (см.
+раздел «AI-поиск» ниже).
+
 ### Полезные dev-параметры мок-сервера
 
 Для ручной проверки состояний загрузки/ошибки/пустого ответа:
@@ -38,12 +52,29 @@ GET /api/org-tree?scenario=error   # 500
 GET /api/org-tree?delay=2000       # искусственная задержка, мс
 ```
 
+## AI-поиск
+
+Строка поиска над деревом/таблицей принимает запросы на естественном языке
+и превращает их в структурированный фильтр (уровень, диапазоны headcount/
+бюджета/эффективности, подстрока в названии) — см.
+[docs/adr/008-ai-search-design.md](docs/adr/008-ai-search-design.md).
+Примеры запросов (русский):
+
+- «команды с эффективностью выше 80»
+- «отделы с бюджетом больше 5 млн»
+- «дивизионы» / «Продажи» (свободный текст → поиск по названию)
+
+Значок рядом с полем показывает, что сработало: `AI (LLM)` — если задан
+`ANTHROPIC_API_KEY`, `AI (правила)` — офлайн-эвристика (по умолчанию),
+`текстовый поиск (fallback)` — если сам запрос к серверу не удался.
+
 ## Структура репозитория
 
 ```
-client/   — React SPA
-server/   — mock API сервер
+client/   — React SPA (+ Dockerfile, nginx.conf)
+server/   — mock API + WS + AI-поиск сервер (+ Dockerfile)
 docs/     — architecture.md, data-model.md, adr/
+docker-compose.yml, .env.example — production-запуск
 ```
 
 ## Этапы (коммиты)
@@ -53,26 +84,35 @@ docs/     — architecture.md, data-model.md, adr/
 - [x] `step/1` — FOUNDATION: скаффолд, mock API, дерево
 - [x] `step/2` — CORE: аналитическая таблица
 - [x] `step/3` — POLISH: live-обновления, UX
-- [ ] `step/4` — BONUS: Docker, Nginx, AI-поиск
+- [x] `step/4` — BONUS: Docker, Nginx, AI-поиск
 
 ## Тесты
 
 ```bash
 npm run test -w client
+npm run test -w server
 ```
 
+Клиент (`client/src/lib/*.test.ts`):
 - `aggregate.test.ts` — суммирование headcount/budget по узлу и всем потомкам,
   взвешенное по headcount усреднение performance, назначение уровней, пустое дерево.
 - `liveUpdate.test.ts` — `applyLivePatch` трогает только затронутый узел и его
   предков (не соседние ветки), корректно пересчитывает их totals, сохраняет
   ссылочную идентичность нетронутых поддеревьев, обновляет `nodesById` под
   клонированные узлы для следующего патча.
+- `aiFilter.test.ts` — `matchesFilter` по каждому полю `StructuredFilter` и их
+  комбинациям (AND-семантика).
+
+Сервер (`server/src/aiSearch.test.ts`):
+- `heuristicParse` — распознавание уровней, границ эффективности/бюджета/
+  headcount (в т.ч. с реальными словоформами, не только словарной формой),
+  комбинация нескольких ограничений в одном запросе, откат к `nameContains`.
 
 ## Документация
 
 - [docs/architecture.md](docs/architecture.md) — слои приложения, поток данных
 - [docs/data-model.md](docs/data-model.md) — дерево, агрегация, контракт live-патчей
-- [docs/adr/](docs/adr/) — architecture decision records
+- [docs/adr/](docs/adr/) — architecture decision records (8 ADR, этапы 01-04)
 
 ## AI в разработке
 
@@ -95,6 +135,12 @@ npm run test -w client
   и его unit-тесты, переподключение с экспоненциальным backoff
   (`liveSocket.ts`), height-transition анимация дерева, клавиатурная
   навигация таблицы.
+- AI-поиск целиком: офлайн-эвристика (`server/src/aiSearch.ts`), опциональный
+  вызов Claude через forced tool-use (`server/src/llmSearch.ts`), клиентский
+  fallback (`client/src/api/aiSearch.ts`), применение фильтра к дереву/таблице
+  и их unit-тесты.
+- Docker: `client/Dockerfile`, `server/Dockerfile`, `nginx.conf`,
+  `docker-compose.yml`, `.env.example`.
 - Вся документация (`README.md`, `docs/architecture.md`, `docs/data-model.md`, ADR).
 
 **Что проверялось/корректировалось человеком:**
@@ -126,5 +172,27 @@ npm run test -w client
   [ADR-005](docs/adr/005-live-updates-transport-and-recompute.md), а не скрыто.
   Без реального запуска в браузере этот баг остался бы незамеченным — тесты и
   тайпчек его не ловят, т.к. это чисто визуальный эффект синхронизации CSS-переходов.
+- На этапе 04 таким же образом (юнит-тестами, а не ревью) нашлись два реальных
+  бага в сгенерированном коде:
+  1. Регулярки эвристики AI-поиска использовали `\w*` для суффиксов русских
+     слов («эффективност`\w*`», «бюджет`\w*`», «сотрудник`\w*`»). `\w` в
+     JavaScript матчит только ASCII, так что реальные словоформы
+     («эффективностью», «бюджетом») не матчились, и запрос тихо откатывался
+     к поиску по названию вместо структурного фильтра. 5 из 7 тестов
+     (`aiSearch.test.ts`) сразу упали при первом запуске — код выглядел
+     правильным, но тесты, написанные с реальными словоформами (не словарной
+     формой), поймали это немедленно. Исправление — `[а-яё]*`.
+  2. `docker compose build` (реально запущенный, не просто написанный
+     Dockerfile) падал на `npm install` внутри `node:20-alpine` с ошибкой
+     арбориста npm (`Cannot read properties of null (reading 'edgesOut')`).
+     Ни ревью, ни тайпчек это бы не поймали — обнаружено только фактическим
+     запуском сборки образа. Исправление — поднять базовый образ до
+     `node:22-alpine` (см. [ADR-007](docs/adr/007-docker-and-nginx.md)).
+- Весь стек после сборки реально поднимался (`docker compose up`) и
+  проверялся: статика с `Content-Encoding: gzip`, проксирование `/api` и
+  `/ws` через Nginx (включая живой WebSocket-патч, полученный через
+  прокси), смена порта через `.env` — не предполагалось, а действительно
+  проверено curl/Node-скриптами и Playwright-прогоном на `localhost:8080`.
 
-Раздел будет дополняться по мере выполнения этапа 04.
+Итоговый production-бандл (внутри Docker-сборки): **~109 КБ gzip** — в пределах
+бюджета 200 КБ.

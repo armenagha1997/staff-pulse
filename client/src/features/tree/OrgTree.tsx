@@ -31,11 +31,12 @@ interface OrgTreeProps {
   expandedIds: Set<string>;
   selectedId: string | null;
   updatedIds: Set<string>;
+  matchIds: Set<string> | null;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
 }
 
-function TreeBranch({ tree, expandedIds, selectedId, updatedIds, onToggle, onSelect }: OrgTreeProps) {
+function TreeBranch({ tree, expandedIds, selectedId, updatedIds, matchIds, onToggle, onSelect }: OrgTreeProps) {
   return (
     <>
       {tree.map((node) => {
@@ -47,6 +48,7 @@ function TreeBranch({ tree, expandedIds, selectedId, updatedIds, onToggle, onSel
               expanded={expanded}
               selected={node.id === selectedId}
               updated={updatedIds.has(node.id)}
+              dimmed={matchIds !== null && !matchIds.has(node.id)}
               onToggle={onToggle}
               onSelect={onSelect}
             />
@@ -58,6 +60,7 @@ function TreeBranch({ tree, expandedIds, selectedId, updatedIds, onToggle, onSel
                     expandedIds={expandedIds}
                     selectedId={selectedId}
                     updatedIds={updatedIds}
+                    matchIds={matchIds}
                     onToggle={onToggle}
                     onSelect={onSelect}
                   />
