@@ -4,36 +4,47 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ server/  — Express mock API                             │
-│  data.ts   — генерация и хранение узлов орг-дерева       │
-│  index.ts  — GET /api/org-tree (+ live-патчи, этап 03)   │
+│ server/  — Express mock API + WS                         │
+│  data.ts   — генерация и мутируемое хранение узлов        │
+│  live.ts   — WS-сервер /ws, раз в 2-5с шлёт node-updated  │
+│  index.ts  — GET /api/org-tree, http.Server для обоих     │
 └─────────────────────────────────────────────────────────┘
-                          │ HTTP (JSON, dev: proксируется Vite)
+              │ HTTP (JSON, dev: проксируется Vite)  │ WS (/ws)
 ┌─────────────────────────────────────────────────────────┐
 │ client/src/api/        — доступ к данным                │
-│  schema.ts     — zod-схема OrgNode / ответа API          │
+│  schema.ts     — zod-схемы OrgNode/ответа API и патча     │
 │  orgTree.ts    — fetch + валидация (бросает при невалидном ответе) │
 │  queryClient.ts— конфигурация react-query (staleTime=5s) │
 │  useOrgTree.ts — хук данных (кэш, retry, отмена запроса) │
+│  liveSocket.ts — WS-соединение, backoff, статус          │
 ├─────────────────────────────────────────────────────────┤
 │ client/src/lib/        — чистые вычисления (без React)    │
-│  tree.ts       — buildTree, ancestorIds, rootIds           │
-│  aggregate.ts  — aggregateTree (headcount/budget/performance) │
+│  tree.ts       — buildTree, flattenTree, idChain,          │
+│                  cloneAlongChain, ancestorIds, rootIds      │
+│  aggregate.ts  — computeRollups/recomputeOwnRollup/         │
+│                  aggregateTree (полный и точечный пересчёт) │
+│  liveUpdate.ts — applyLivePatch (мутация + O(глубина)       │
+│                  пересчёт + клонирование по цепочке)        │
 │  format.ts     — formatBudget ("12 345 678 руб.")          │
-│  useDebouncedValue.ts — дебаунс значения (фильтр, 250мс)    │
+│  useDebouncedValue.ts, useFadingHighlights.ts               │
+├─────────────────────────────────────────────────────────┤
+│ client/src/features/live/useLiveOrgData.ts — владеет       │
+│  мутируемой моделью (nodesById/aggById в ref) и подпиской   │
+│  на WS; отдаёт tree/aggregatedRows/updatedIds/статус        │
 ├─────────────────────────────────────────────────────────┤
 │ client/src/features/   — UI-фичи                          │
-│  tree/OrgTree.tsx, TreeRow.tsx     — дерево (controlled)   │
-│  table/OrgTable.tsx, columns.ts    — аналитическая таблица │
+│  tree/OrgTree.tsx, TreeRow.tsx     — дерево (controlled),  │
+│                                       height-transition     │
+│  table/OrgTable.tsx, columns.ts    — таблица, клав. навигация │
 ├─────────────────────────────────────────────────────────┤
 │ client/src/components/ — переиспользуемые UI-примитивы    │
-│  StatusPanels.tsx        — Loading/Error/Empty            │
-│  PerformanceIndicator.tsx— цветовой индикатор performance  │
-│  ViewToggle.tsx          — переключатель Дерево/Таблица   │
+│  StatusPanels.tsx, PerformanceIndicator.tsx, ViewToggle.tsx│
+│  ConnectionIndicator.tsx — статус WS в шапке               │
 ├─────────────────────────────────────────────────────────┤
-│ client/src/App.tsx — владеет общим состоянием (tree,      │
-│  aggregatedRows, selectedId, expandedIds) и передаёт его  │
-│  вниз в OrgTree/OrgTable как controlled-компоненты         │
+│ client/src/App.tsx — владеет UI-состоянием (selectedId,    │
+│  expandedIds, view) и получает live-данные из               │
+│  useLiveOrgData; передаёт всё вниз в OrgTree/OrgTable как   │
+│  controlled-компоненты                                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -76,8 +87,20 @@ react-query передаёt в `queryFn` `AbortSignal`, связанный с ж
 (`filter`, `sort`), не поднятое в `App`: оно не влияет ни на дерево, ни на
 агрегацию, поэтому не должно быть в общем состоянии.
 
+## Live-обновления
+
+`useLiveOrgData` (не react-query) — единственный владелец мутируемой модели
+дерева/агрегатов и WS-подключения. REST-кэш (`['org-tree']`) поставляет
+только начальный снимок структуры; живые патчи применяются напрямую к
+отдельной модели, минуя react-query (см. [data-model.md](data-model.md#live-патчи)
+и [ADR-005](adr/005-live-updates-transport-and-recompute.md)). `App` получает
+из этого хука уже готовые `tree`/`aggregatedRows`/`updatedIds`/`connectionStatus`
+и не знает о механике патчей — с его точки зрения это просто ещё один
+источник данных, как `useOrgTree`.
+
 ## Почему так (детали решений)
 
 Нетривиальные решения (react-query vs самописный кэш, styled-components vs
-CSS-модули, структура монорепозитория, режим просмотра и модель сортировки)
-зафиксированы в [docs/adr](adr/).
+CSS-модули, структура монорепозитория, режим просмотра и модель сортировки,
+транспорт live-обновлений и инкрементальный пересчёт, height-transition
+дерева и модель клавиатурной навигации) зафиксированы в [docs/adr](adr/).

@@ -10,6 +10,7 @@ export const colors = {
   performanceMid: "#f2b84b",
   performanceLow: "#ef5a6f",
   danger: "#ef5a6f",
+  highlightFlash: "rgba(242, 184, 75, 0.35)",
 } as const;
 
 export function performanceColor(performance: number): string {

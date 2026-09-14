@@ -1,7 +1,9 @@
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
+import http from "node:http";
 import { store } from "./data.js";
+import { attachLiveUpdates } from "./live.js";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -28,6 +30,9 @@ app.get("/api/org-tree", (req, res) => {
   }, delay);
 });
 
-app.listen(PORT, () => {
-  console.log(`[server] listening on http://localhost:${PORT}`);
+const httpServer = http.createServer(app);
+attachLiveUpdates(httpServer);
+
+httpServer.listen(PORT, () => {
+  console.log(`[server] listening on http://localhost:${PORT} (WS: ws://localhost:${PORT}/ws)`);
 });

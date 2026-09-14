@@ -46,3 +46,62 @@ export function ancestorIds(nodes: OrgNode[], id: string): string[] {
   }
   return result;
 }
+
+export function flattenTree(tree: TreeNode[]): TreeNode[] {
+  const result: TreeNode[] = [];
+  const walk = (nodes: TreeNode[]): void => {
+    for (const node of nodes) {
+      result.push(node);
+      walk(node.children);
+    }
+  };
+  walk(tree);
+  return result;
+}
+
+// [rootId, ..., parentId, id] — the full path from a root down to `id`.
+export function idChain(nodesById: Map<string, TreeNode>, id: string): string[] {
+  const chain: string[] = [];
+  let current = nodesById.get(id);
+  while (current) {
+    chain.unshift(current.id);
+    current = current.parentId ? nodesById.get(current.parentId) : undefined;
+  }
+  return chain;
+}
+
+export interface CloneAlongChainResult {
+  roots: TreeNode[];
+  clonedById: Map<string, TreeNode>;
+}
+
+// Rebuilds only the nodes on `chain` (root...target) as new objects; every
+// sibling subtree not on the path keeps its original reference. This is what
+// lets a live patch produce a fresh top-level array (so React re-renders)
+// without copying the whole tree.
+export function cloneAlongChain(roots: TreeNode[], chain: string[]): CloneAlongChainResult {
+  const clonedById = new Map<string, TreeNode>();
+  if (chain.length === 0) {
+    return { roots, clonedById };
+  }
+
+  const [headId, ...rest] = chain;
+
+  const cloneNode = (node: TreeNode, remaining: string[]): TreeNode => {
+    if (remaining.length === 0) {
+      const clone = { ...node };
+      clonedById.set(node.id, clone);
+      return clone;
+    }
+    const [nextId, ...tail] = remaining;
+    const clone: TreeNode = {
+      ...node,
+      children: node.children.map((child) => (child.id === nextId ? cloneNode(child, tail) : child)),
+    };
+    clonedById.set(node.id, clone);
+    return clone;
+  };
+
+  const newRoots = roots.map((root) => (root.id === headId ? cloneNode(root, rest) : root));
+  return { roots: newRoots, clonedById };
+}

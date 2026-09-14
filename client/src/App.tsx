@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import type { OrgNode } from "@/api/schema";
 import { useOrgTree } from "@/api/useOrgTree";
+import { ConnectionIndicator } from "@/components/ConnectionIndicator";
 import { EmptyState, ErrorState, LoadingState } from "@/components/StatusPanels";
 import { ViewToggle, type ViewMode } from "@/components/ViewToggle";
+import { useLiveOrgData } from "@/features/live/useLiveOrgData";
 import { OrgTree } from "@/features/tree/OrgTree";
 import { OrgTable } from "@/features/table/OrgTable";
-import { aggregateTree } from "@/lib/aggregate";
-import { ancestorIds, buildTree, rootIds } from "@/lib/tree";
+import { ancestorIds, rootIds } from "@/lib/tree";
 import { colors } from "@/styles/colors";
 
 const Page = styled.div`
@@ -18,6 +19,10 @@ const Page = styled.div`
 `;
 
 const Header = styled.header`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
 `;
 
@@ -74,8 +79,7 @@ function App() {
   const didInitExpansion = useRef(false);
 
   const nodes = data ?? EMPTY_NODES;
-  const tree = useMemo(() => buildTree(nodes), [nodes]);
-  const aggregatedRows = useMemo(() => aggregateTree(tree), [tree]);
+  const { tree, aggregatedRows, updatedIds, connectionStatus } = useLiveOrgData(nodes);
 
   // "Второй уровень открыт по умолчанию": seed expansion with root ids once,
   // the first time data arrives — later refetches must not reset the user's
@@ -115,8 +119,11 @@ function App() {
   return (
     <Page>
       <Header>
-        <Title>Staff Pulse — орг-структура компании</Title>
-        <Subtitle>Дивизионы → отделы → команды</Subtitle>
+        <div>
+          <Title>Staff Pulse — орг-структура компании</Title>
+          <Subtitle>Дивизионы → отделы → команды</Subtitle>
+        </div>
+        {!isLoading && !isError && nodes.length > 0 && <ConnectionIndicator status={connectionStatus} />}
       </Header>
 
       {isLoading && <LoadingState />}
@@ -135,13 +142,14 @@ function App() {
                 tree={tree}
                 expandedIds={expandedIds}
                 selectedId={selectedId}
+                updatedIds={updatedIds}
                 onToggle={toggleExpanded}
                 onSelect={selectNode}
               />
             </Panel>
             <Panel $visible={view === "table"}>
               <PanelTitle>Аналитическая таблица</PanelTitle>
-              <OrgTable rows={aggregatedRows} selectedId={selectedId} onSelect={selectNode} />
+              <OrgTable rows={aggregatedRows} selectedId={selectedId} updatedIds={updatedIds} onSelect={selectNode} />
             </Panel>
           </Layout>
         </>
