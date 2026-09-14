@@ -3,6 +3,20 @@
 Дашборд для мониторинга орг-структуры компании: дивизионы → отделы → команды,
 с интерактивным деревом и аналитической таблицей.
 
+## Скриншоты
+
+| Дерево | Таблица |
+|---|---|
+| ![Дерево](docs/screenshots/01-tree-view.png) | ![Таблица](docs/screenshots/02-table-view.png) |
+
+| Split-view (≥1280px) | AI-поиск |
+|---|---|
+| ![Split-view](docs/screenshots/03-split-view.png) | ![AI-поиск](docs/screenshots/04-ai-search.png) |
+
+**Live-обновление** (жёлтая вспышка на затронутых узле и предке, "Дивизион «Продажи»" и "Отдел «Мобильные продукты»"):
+
+![Live-обновление](docs/screenshots/05-live-update-flash.png)
+
 ## Стек
 
 - **Клиент**: React 19 + TypeScript + Vite, `@tanstack/react-query` (кэш/SWR),
