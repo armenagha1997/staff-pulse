@@ -144,13 +144,23 @@ export function OrgTable({ rows, selectedId, updatedIds, matchIds, onSelect }: O
     rowRefs.current[focusedIndex]?.scrollIntoView({ block: "nearest" });
   }, [focusedIndex]);
 
+  // Click toggles asc/desc on the same column (defaulting to asc when the
+  // clicked column differs from the current one) — every single click has a
+  // visible effect. An earlier version forced "asc" unconditionally on
+  // click, so re-clicking an already-ascending column was a silent no-op;
+  // that made clicks feel randomly unresponsive (users had to accidentally
+  // fire a fast enough double-click to see any change).
   const handleHeaderClick = (column: ColumnKey) => {
-    setSort({ column, direction: "asc" });
+    setSort((prev) => {
+      if (prev.column !== column) return { column, direction: "asc" };
+      return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+    });
   };
 
-  // Two clicks land here as `click, click, dblclick` in the DOM, so by the time
-  // this fires, handleHeaderClick has already forced "asc" — a plain overwrite
-  // to "desc" is enough to make double-click the reverse of a single click.
+  // A real double-click fires `click, click, dblclick`: the two clicks above
+  // already toggle the column twice (net no-op on direction), then this
+  // forces "desc" — so double-click reliably means "descending", regardless
+  // of the column's prior state.
   const handleHeaderDoubleClick = (column: ColumnKey) => {
     setSort({ column, direction: "desc" });
   };
